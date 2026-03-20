@@ -49,6 +49,7 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
   const [isLoading, setIsLoading] = useState(false);
   const [isBooksLoading, setIsBooksLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [chapterSearchQuery, setChapterSearchQuery] = useState('');
   const [selectedBook, setSelectedBook] = useState<string | null>(null);
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>('English');
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
@@ -91,6 +92,7 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
     if (selectedBook) {
       fetchEditions();
       setViewMode('index');
+      setChapterSearchQuery('');
       // If no language is selected, default to English
       if (!selectedLanguage || selectedLanguage === 'ar') {
         setSelectedLanguage('English');
@@ -283,6 +285,12 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
   const filteredBooks = books.filter(book => 
     book.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     book.author.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredChapters = chaptersList.filter(chapter => 
+    chapter.chapterName.toLowerCase().includes(chapterSearchQuery.toLowerCase()) ||
+    chapter.chapterNumber.toString().includes(chapterSearchQuery) ||
+    chapter.chapterArabic.includes(chapterSearchQuery)
   );
 
   const activeBook = books.find(b => b.id === selectedBook);
@@ -504,7 +512,7 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                 className="fixed inset-0 z-[40] bg-stone-50 flex flex-col overflow-hidden h-[100dvh] pb-20 md:pb-0"
               >
                 {/* Fixed Header for Index (Matches Quran/Hadith Reader Style) */}
-                <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 py-3 flex items-center justify-between z-50 shrink-0">
+                <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 pt-12 pb-3 md:py-3 flex items-center justify-between z-50 shrink-0">
                   <div className="flex items-center gap-3">
                     <button 
                       onClick={() => {
@@ -537,15 +545,35 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                 </header>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 space-y-4 pb-16">
-                  <div className="max-w-4xl mx-auto grid grid-cols-1 gap-3">
-                    {chaptersList.length === 0 ? (
-                      <div className="bg-white p-12 rounded-[2.5rem] border border-stone-100 shadow-sm text-center">
-                        <Info className="w-12 h-12 text-stone-300 mx-auto mb-4" />
-                        <p className="text-stone-500 font-medium">No chapters found for this collection.</p>
-                        <p className="text-stone-400 text-sm mt-2">Admins can sync the index from the dashboard.</p>
+                  <div className="max-w-4xl mx-auto space-y-4">
+                    {/* Chapter Search Input */}
+                    {chaptersList.length > 0 && (
+                      <div className="relative">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-stone-400" />
+                        <input
+                          type="text"
+                          placeholder="Search chapters by name or number..."
+                          value={chapterSearchQuery}
+                          onChange={(e) => setChapterSearchQuery(e.target.value)}
+                          className="w-full bg-white border border-stone-200 rounded-2xl pl-12 pr-6 py-4 text-sm focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm transition-all"
+                        />
                       </div>
-                    ) : (
-                      chaptersList.map((chapter) => (
+                    )}
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {chaptersList.length === 0 ? (
+                        <div className="bg-white p-12 rounded-[2.5rem] border border-stone-100 shadow-sm text-center">
+                          <Info className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                          <p className="text-stone-500 font-medium">No chapters found for this collection.</p>
+                          <p className="text-stone-400 text-sm mt-2">Admins can sync the index from the dashboard.</p>
+                        </div>
+                      ) : filteredChapters.length === 0 ? (
+                        <div className="bg-white p-12 rounded-[2.5rem] border border-stone-100 shadow-sm text-center">
+                          <Info className="w-12 h-12 text-stone-300 mx-auto mb-4" />
+                          <p className="text-stone-500 font-medium">No chapters match your search.</p>
+                        </div>
+                      ) : (
+                        filteredChapters.map((chapter) => (
                         <motion.div
                           key={`chapter-${chapter.id}`}
                           initial={{ opacity: 0, y: 10 }}
@@ -558,13 +586,13 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                           }}
                           className="bg-white p-4 rounded-2xl border border-stone-100 shadow-sm hover:shadow-md transition-all flex justify-between items-center gap-4 group cursor-pointer"
                         >
-                          <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-4 flex-1">
                             <div className="w-10 h-10 bg-emerald-50 text-emerald-700 rounded-xl flex items-center justify-center font-bold text-xs shadow-sm border border-emerald-100 shrink-0">
                               {chapter.chapterNumber}
                             </div>
-                            <div className="space-y-0.5">
+                            <div className="space-y-0.5 flex-1">
                               <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Chapter {chapter.chapterNumber}</p>
-                              <p className="text-[10px] text-stone-500 font-medium italic">{chapter.language} Translation</p>
+                              <p className="text-sm text-stone-700 font-medium line-clamp-1">{chapter.chapterName}</p>
                             </div>
                           </div>
                           
@@ -573,18 +601,13 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                               {chapter.chapterArabic}
                             </p>
                           </div>
-
-                          <div className="flex items-center gap-2">
-                            <div className="p-3 bg-stone-50 text-stone-400 group-hover:bg-emerald-900 group-hover:text-white rounded-xl transition-all">
-                              <ChevronRight className="w-5 h-5" />
-                            </div>
-                          </div>
                         </motion.div>
                       ))
                     )}
                   </div>
                 </div>
-              </motion.div>
+              </div>
+            </motion.div>
             ) : hadiths.length === 0 ? (
               <div className="bg-white p-12 rounded-[2.5rem] border border-stone-100 shadow-sm text-center">
                 <Info className="w-12 h-12 text-stone-300 mx-auto mb-4" />
@@ -599,10 +622,13 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                 className="fixed inset-0 z-[40] bg-stone-50 flex flex-col overflow-hidden h-[100dvh] pb-20 md:pb-0"
               >
                 {/* Optimized Header (Matches Quran Style) */}
-                <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 py-3 flex items-center justify-between z-50 shrink-0">
+                <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 pt-12 pb-3 md:py-3 flex items-center justify-between z-50 shrink-0">
                   <div className="flex items-center gap-3">
                     <button 
-                      onClick={() => setDisplayMode('list')}
+                      onClick={() => {
+                        setViewMode('index');
+                        setSelectedChapter(null);
+                      }}
                       className="p-2 text-stone-600 hover:bg-stone-100 rounded-full transition-all"
                     >
                       <ChevronRight className="w-5 h-5 rotate-180" />
@@ -628,7 +654,7 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                   </div>
                 </header>
 
-                <div className="flex-1 relative flex flex-col items-center justify-center p-2 md:p-8 overflow-hidden pb-16 md:pb-8">
+                <div className="flex-1 relative flex flex-col items-center justify-center p-2 md:p-8 overflow-hidden md:pb-8">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.div
                       key={`reader-hadith-${hadiths[selectedHadithIndex].id}`}
@@ -643,16 +669,18 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                       transition={{ type: 'spring', stiffness: 400, damping: 40 }}
                       drag="x"
                       dragConstraints={{ left: 0, right: 0 }}
+                      dragElastic={0.2}
+                      dragDirectionLock
                       onDrag={(_, info) => setDragX(info.offset.x)}
                       onDragEnd={(_, info) => {
-                        const threshold = 100;
-                        if (info.offset.x > threshold) {
+                        const threshold = 50;
+                        if (info.offset.x > threshold || info.velocity.x > 500) {
                           // Swipe Right -> Next Hadith
                           setSwipeDirection(1);
                           if (selectedHadithIndex < hadiths.length - 1) {
                             setSelectedHadithIndex(prev => prev + 1);
                           }
-                        } else if (info.offset.x < -threshold) {
+                        } else if (info.offset.x < -threshold || info.velocity.x < -500) {
                           // Swipe Left -> Previous Hadith
                           setSwipeDirection(-1);
                           if (selectedHadithIndex > 0) {
@@ -661,7 +689,7 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                         }
                         setDragX(0);
                       }}
-                      className="w-full max-w-4xl cursor-grab active:cursor-grabbing h-full relative"
+                      className="w-full max-w-4xl cursor-grab active:cursor-grabbing h-full relative touch-pan-y"
                     >
                       <div className="bg-white rounded-[3rem] border border-stone-200 shadow-2xl overflow-hidden flex flex-col h-full">
                         {/* Actions Bar */}
@@ -703,7 +731,7 @@ export default function HadithLibrary({ onDisplayModeChange }: HadithLibraryProp
                           </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-16 space-y-12 bg-white">
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 md:p-16 space-y-12 bg-white my-2">
                           <div className="text-right leading-[2.5] text-stone-900" style={{ direction: 'rtl' }}>
                             <p className="text-3xl md:text-5xl font-arabic leading-relaxed">
                               {hadiths[selectedHadithIndex].arabic}

@@ -28,8 +28,7 @@ service cloud.firestore {
     // ===============================================================
 
     function isAdmin() {
-      return isAuthenticated() && 
-        (request.auth.token.email == "adnan0977@gmail.com");
+      return request.auth != null && request.auth.token.email == "adnan0977@gmail.com";
     }
 
     function hasOnlyAllowedFields(fields) {
@@ -55,9 +54,7 @@ service cloud.firestore {
     // ===============================================================
     
     match /users/{userId} {
-      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create, update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow list, delete: if isAdmin();
+      allow read, write: if request.auth != null && (request.auth.uid == userId || request.auth.token.email == 'adnan0977@gmail.com');
     }
 
     match /quran_editions/{editionId} {

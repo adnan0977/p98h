@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getPrayerTimes, getQiblaDirection, PrayerTime } from '../services/prayerService';
-import { Clock, MapPin, Compass, Bell, BellOff, Info, Sun, Moon } from 'lucide-react';
-import { motion } from 'motion/react';
+import { Clock, MapPin, Compass, Bell, BellOff, Info, Sun, Moon, Map } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 export default function PrayerTimesDisplay() {
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
@@ -9,8 +9,9 @@ export default function PrayerTimesDisplay() {
   const [qibla, setQibla] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<boolean>(true);
+  const [showPermissionPopup, setShowPermissionPopup] = useState(false);
 
-  useEffect(() => {
+  const requestLocation = () => {
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -18,16 +19,84 @@ export default function PrayerTimesDisplay() {
           setLocation({ lat: latitude, lng: longitude });
           setPrayerTimes(getPrayerTimes(latitude, longitude));
           setQibla(getQiblaDirection(latitude, longitude));
+          setShowPermissionPopup(false);
+          setError(null);
         },
         (err) => {
-          setError("Please enable location permissions to see precise prayer times.");
+          setError("Please enable location permissions in your device settings to see precise prayer times and Qibla direction.");
+          setShowPermissionPopup(false);
           console.error(err);
         }
       );
     } else {
       setError("Geolocation is not supported by your browser.");
+      setShowPermissionPopup(false);
     }
+  };
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        if ("permissions" in navigator && navigator.permissions && navigator.permissions.query) {
+          const result = await navigator.permissions.query({ name: 'geolocation' });
+          if (result.state === 'granted') {
+            requestLocation();
+          } else if (result.state === 'prompt') {
+            setShowPermissionPopup(true);
+          } else {
+            setError("Please enable location permissions in your device settings to see precise prayer times and Qibla direction.");
+          }
+        } else {
+          // Fallback for browsers that don't support permissions API
+          setShowPermissionPopup(true);
+        }
+      } catch (e) {
+        // Fallback for Safari
+        setShowPermissionPopup(true);
+      }
+    };
+    checkPermission();
   }, []);
+
+  if (showPermissionPopup) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 md:py-20 px-4">
+        <div className="bg-white p-8 md:p-12 rounded-[2.5rem] border border-stone-200 shadow-xl max-w-md w-full text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-full -mr-16 -mt-16 blur-2xl"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-emerald-50 rounded-full -ml-16 -mb-16 blur-2xl"></div>
+          
+          <div className="relative z-10">
+            <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+              <Map className="w-10 h-10" />
+            </div>
+            
+            <h2 className="text-2xl font-bold text-stone-900 mb-3">Location Access</h2>
+            <p className="text-stone-500 mb-8 leading-relaxed">
+              We need your location to calculate accurate prayer times (Namaz) and the correct Qibla direction for your area.
+            </p>
+            
+            <div className="space-y-3">
+              <button 
+                onClick={requestLocation}
+                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-2xl transition-all shadow-md hover:shadow-lg active:scale-[0.98]"
+              >
+                Grant Access
+              </button>
+              <button 
+                onClick={() => {
+                  setShowPermissionPopup(false);
+                  setError("Location access was denied. Please enable it to see prayer times.");
+                }}
+                className="w-full bg-stone-100 hover:bg-stone-200 text-stone-600 font-bold py-4 rounded-2xl transition-all active:scale-[0.98]"
+              >
+                Not Now
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (

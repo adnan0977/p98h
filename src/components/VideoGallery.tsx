@@ -69,7 +69,7 @@ export default function VideoGallery() {
       </div>
 
       {/* Categories */}
-      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+      <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide touch-pan-x">
         {categories.map(cat => (
           <button
             key={cat}

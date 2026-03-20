@@ -187,18 +187,18 @@ export default function App() {
           // Try fetching profile (getDoc handles cache automatically if offline/quota)
           let profileDoc = null;
           try {
-            profileDoc = await getDocFromServer(userDocRef);
-            console.log(`[App] getDocFromServer result exists: ${profileDoc.exists()}`);
+            profileDoc = await getDoc(userDocRef);
+            console.log(`[App] getDoc result exists: ${profileDoc.exists()}`);
           } catch (getErr) {
             const getErrMsg = getErr instanceof Error ? getErr.message.toLowerCase() : '';
-            console.warn(`[App] getDocFromServer failed: ${getErrMsg}`);
+            console.warn(`[App] getDoc failed: ${getErrMsg}`);
             
             if (getErrMsg.includes('permission')) {
               handleFirestoreError(getErr, OperationType.GET, `users/${currentUser.uid}`);
             }
 
             if (getErrMsg.includes('quota') || getErrMsg.includes('offline')) {
-              console.warn("[App] getDocFromServer failed (quota/offline), trying cache explicitly.");
+              console.warn("[App] getDoc failed (quota/offline), trying cache explicitly.");
               try {
                 profileDoc = await getDocFromCache(userDocRef);
                 console.log(`[App] getDocFromCache result exists: ${profileDoc?.exists()}`);
@@ -207,7 +207,7 @@ export default function App() {
                 // We'll proceed to the 'else' block below by leaving profileDoc as null
               }
             } else {
-              console.error("[App] getDocFromServer failed with non-quota/offline error:", getErr);
+              console.error("[App] getDoc failed with non-quota/offline error:", getErr);
               throw getErr;
             }
           }

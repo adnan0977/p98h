@@ -66,7 +66,7 @@ export default function Layout({ children, activeTab, setActiveTab, user, isAdmi
 
       {/* Header */}
       {!hideHeader && (
-        <header className="sticky top-0 z-50 bg-white border-b border-stone-200 px-4 py-3 flex items-center justify-between shadow-sm">
+        <header className="sticky top-0 z-50 bg-white border-b border-stone-200 px-4 pt-12 pb-3 md:py-3 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-2">
             <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-md">
               <Moon className="w-6 h-6" />
@@ -171,8 +171,19 @@ export default function Layout({ children, activeTab, setActiveTab, user, isAdmi
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-[2.5rem] p-8 pb-32 shadow-2xl border-t border-stone-100"
+              drag="y"
+              dragConstraints={{ top: 0, bottom: 0 }}
+              dragElastic={0.2}
+              onDragEnd={(_, info) => {
+                if (info.offset.y > 50 || info.velocity.y > 500) {
+                  setIsMenuOpen(false);
+                }
+              }}
+              className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-[2.5rem] p-8 pb-32 shadow-2xl border-t border-stone-100 touch-pan-x"
             >
+              <div className="flex justify-center mb-4">
+                <div className="w-12 h-1.5 bg-stone-200 rounded-full" />
+              </div>
               <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-stone-900">All Services</h3>
                 <button onClick={() => setIsMenuOpen(false)} className="p-2 text-stone-400">

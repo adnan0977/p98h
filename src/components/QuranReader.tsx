@@ -714,8 +714,8 @@ function SurahReader({
   };
 
   const handleAyahDragEnd = (_: any, info: any) => {
-    const threshold = 100;
-    if (info.offset.x > threshold) {
+    const threshold = 50;
+    if (info.offset.x > threshold || info.velocity.x > 500) {
       // Swipe Right -> Next Ayah (RTL Forward)
       setSwipeDirection(1);
       if (currentAyahIndex < ayahs.length - 1) {
@@ -723,7 +723,7 @@ function SurahReader({
       } else {
         handleNextSurah();
       }
-    } else if (info.offset.x < -threshold) {
+    } else if (info.offset.x < -threshold || info.velocity.x < -500) {
       // Swipe Left -> Previous Ayah (RTL Backward)
       setSwipeDirection(-1);
       if (currentAyahIndex > 0) {
@@ -736,16 +736,16 @@ function SurahReader({
   };
 
   const handlePageDragEnd = async (_: any, info: any) => {
-    const threshold = 100;
+    const threshold = 50;
     const currentPage = currentAyah?.page;
     if (!currentPage) return;
 
     let targetPage = currentPage;
-    if (info.offset.x > threshold) {
+    if (info.offset.x > threshold || info.velocity.x > 500) {
       // Swipe Right -> Next Page (RTL Forward)
       setSwipeDirection(1);
       if (currentPage < 604) targetPage = currentPage + 1;
-    } else if (info.offset.x < -threshold) {
+    } else if (info.offset.x < -threshold || info.velocity.x < -500) {
       // Swipe Left -> Previous Page (RTL Backward)
       setSwipeDirection(-1);
       if (currentPage > 1) targetPage = currentPage - 1;
@@ -787,7 +787,7 @@ function SurahReader({
       className="fixed inset-0 z-[40] bg-stone-50 flex flex-col overflow-hidden h-[100dvh] pb-20 md:pb-0"
     >
       {/* Optimized Header */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 py-3 flex items-center justify-between z-50">
+      <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 pt-12 pb-3 md:py-3 flex items-center justify-between z-50">
         <div className="flex items-center gap-3">
           <button 
             onClick={() => setViewMode('list')}
@@ -853,6 +853,8 @@ function SurahReader({
                   transition={{ type: "spring", stiffness: 400, damping: 40 }}
                   drag="x"
                   dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  dragDirectionLock
                   onDrag={(_, info) => setDragX(info.offset.x)}
                   onDragEnd={handlePageDragEnd}
                   className="absolute inset-0 bg-white rounded-[3rem] border border-stone-200 shadow-2xl overflow-hidden flex flex-col cursor-grab active:cursor-grabbing touch-pan-y"
@@ -958,6 +960,8 @@ function SurahReader({
                   transition={{ type: "spring", stiffness: 400, damping: 40 }}
                   drag="x"
                   dragConstraints={{ left: 0, right: 0 }}
+                  dragElastic={0.2}
+                  dragDirectionLock
                   onDrag={(_, info) => setDragX(info.offset.x)}
                   onDragEnd={handleAyahDragEnd}
                   className="absolute inset-0 bg-white rounded-[3rem] border border-stone-200 shadow-2xl overflow-hidden flex flex-col cursor-grab active:cursor-grabbing touch-pan-y"
