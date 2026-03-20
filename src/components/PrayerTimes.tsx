@@ -51,9 +51,9 @@ export default function PrayerTimesDisplay() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 md:space-y-8">
       {/* Hero Section */}
-      <div className="relative overflow-hidden bg-emerald-900 text-white p-8 rounded-3xl shadow-2xl">
+      <div className="relative overflow-hidden bg-emerald-900 text-white p-6 md:p-8 rounded-3xl shadow-2xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-800/50 rounded-full -mr-20 -mt-20 blur-3xl"></div>
         <div className="relative z-10 flex flex-col md:flex-row justify-between items-center gap-8">
           <div className="text-center md:text-left">

@@ -134,7 +134,8 @@
         },
         "chapterId": { "type": "integer" },
         "bookSlug": { "type": "string" },
-        "status": { "type": "string" }
+        "status": { "type": "string" },
+        "id": { "type": "string", "description": "Indonesian translation" }
       },
       "required": ["number", "arab"]
     },

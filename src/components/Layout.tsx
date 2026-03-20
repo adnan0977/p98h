@@ -55,7 +55,7 @@ export default function Layout({ children, activeTab, setActiveTab, user, isAdmi
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans">
+    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans flex flex-col">
       {/* Global Announcement */}
       {announcement && (
         <div className="bg-emerald-900 text-white py-2 px-4 text-center text-[10px] font-bold uppercase tracking-[0.2em] relative z-[60]">
@@ -122,36 +122,38 @@ export default function Layout({ children, activeTab, setActiveTab, user, isAdmi
       )}
 
       {/* Bottom Navigation for Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-6 py-3 z-50 flex justify-between items-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-        <button 
-          onClick={() => { setActiveTab('prayers'); setIsMenuOpen(false); }}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'prayers' ? 'text-emerald-600' : 'text-stone-400'}`}
-        >
-          <Home className="w-6 h-6" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Home</span>
-        </button>
-        <button 
-          onClick={() => { setActiveTab('quran'); setIsMenuOpen(false); }}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'quran' ? 'text-emerald-600' : 'text-stone-400'}`}
-        >
-          <BookOpen className="w-6 h-6" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Quran</span>
-        </button>
-        <button 
-          onClick={() => { setActiveTab('hadith'); setIsMenuOpen(false); }}
-          className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'hadith' ? 'text-emerald-600' : 'text-stone-400'}`}
-        >
-          <Moon className="w-6 h-6" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">Hadith</span>
-        </button>
-        <button 
-          onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className={`flex flex-col items-center gap-1 transition-all ${isMenuOpen ? 'text-emerald-600' : 'text-stone-400'}`}
-        >
-          <MoreHorizontal className="w-6 h-6" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">More</span>
-        </button>
-      </nav>
+      {!hideFooter && (
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-stone-200 px-6 py-3 z-50 flex justify-between items-center shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
+          <button 
+            onClick={() => { setActiveTab('prayers'); setIsMenuOpen(false); }}
+            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'prayers' ? 'text-emerald-600' : 'text-stone-400'}`}
+          >
+            <Home className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Home</span>
+          </button>
+          <button 
+            onClick={() => { setActiveTab('quran'); setIsMenuOpen(false); }}
+            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'quran' ? 'text-emerald-600' : 'text-stone-400'}`}
+          >
+            <BookOpen className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Quran</span>
+          </button>
+          <button 
+            onClick={() => { setActiveTab('hadith'); setIsMenuOpen(false); }}
+            className={`flex flex-col items-center gap-1 transition-all ${activeTab === 'hadith' ? 'text-emerald-600' : 'text-stone-400'}`}
+          >
+            <Moon className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">Hadith</span>
+          </button>
+          <button 
+            onClick={() => setIsMenuOpen(!isMenuOpen)}
+            className={`flex flex-col items-center gap-1 transition-all ${isMenuOpen ? 'text-emerald-600' : 'text-stone-400'}`}
+          >
+            <MoreHorizontal className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">More</span>
+          </button>
+        </nav>
+      )}
 
       {/* Mobile Menu Overlay */}
       <AnimatePresence>
@@ -202,7 +204,7 @@ export default function Layout({ children, activeTab, setActiveTab, user, isAdmi
       </AnimatePresence>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-8 pb-24 md:pb-8">
+      <main className={`flex-1 max-w-7xl mx-auto w-full px-4 py-2 md:py-8 ${hideFooter ? 'pb-1' : 'pb-1 md:pb-8'}`}>
         <motion.div
           key={activeTab}
           initial={{ opacity: 0, x: 10 }}
@@ -215,14 +217,14 @@ export default function Layout({ children, activeTab, setActiveTab, user, isAdmi
 
       {/* Footer */}
       {!hideFooter && (
-        <footer className="mt-auto border-t border-stone-200 bg-white py-8 px-4 pb-32 md:pb-8">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
+        <footer className="mt-auto border-t border-stone-200 bg-white py-2 md:py-8 px-4 pb-16 md:pb-8">
+          <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-1 md:gap-6">
             <div className="flex items-center gap-2">
-              <Moon className="w-5 h-5 text-emerald-600" />
-              <span className="font-bold text-stone-900">Al-Hidayah</span>
+              <Moon className="w-3 h-3 md:w-5 md:h-5 text-emerald-600" />
+              <span className="font-bold text-stone-900 text-[10px] md:text-base">Al-Hidayah</span>
             </div>
-            <p className="text-stone-500 text-sm">© 2026 Al-Hidayah. All rights reserved.</p>
-            <div className="flex gap-6 text-sm font-medium text-stone-500">
+            <p className="text-stone-500 text-[8px] md:text-sm">© 2026 Al-Hidayah. All rights reserved.</p>
+            <div className="hidden md:flex gap-4 md:gap-6 text-[10px] md:text-sm font-medium text-stone-500">
               <a href="#" className="hover:text-emerald-600">Privacy</a>
               <a href="#" className="hover:text-emerald-600">Terms</a>
               <a href="#" className="hover:text-emerald-600">Contact</a>

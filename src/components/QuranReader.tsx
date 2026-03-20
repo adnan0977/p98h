@@ -3,6 +3,14 @@ import { Book, Search, ChevronLeft, ChevronRight, Play, Pause, Volume2, Info, Bo
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { 
+  cacheQuranSurah, 
+  getCachedQuranSurah, 
+  cacheQuranEditions, 
+  getCachedQuranEditions,
+  cacheQuranPage,
+  getCachedQuranPage
+} from '../services/dbService';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
   constructor(props: { children: React.ReactNode }) {
@@ -143,25 +151,41 @@ function QuranReaderContent({ onReaderModeChange }: { onReaderModeChange: (activ
   }, [settings]);
 
   useEffect(() => {
-    fetch('https://api.alquran.cloud/v1/surah')
-      .then(res => res.json())
-      .then(data => {
-        setSurahs(data.data);
+    const fetchInitialData = async () => {
+      // 1. Try to load surahs from cache first
+      const cachedSurahs = localStorage.getItem('quran_surahs_list');
+      if (cachedSurahs) {
+        setSurahs(JSON.parse(cachedSurahs));
         setIsLoading(false);
-      });
+      }
 
-    // Fetch available editions from Firestore
-    const fetchEditions = async () => {
+      // Fetch fresh list from API
+      fetch('https://api.alquran.cloud/v1/surah')
+        .then(res => res.json())
+        .then(data => {
+          setSurahs(data.data);
+          localStorage.setItem('quran_surahs_list', JSON.stringify(data.data));
+          setIsLoading(false);
+        });
+
+      // 2. Fetch available editions (Try cache then Firestore)
       try {
+        const cachedEds = await getCachedQuranEditions();
+        if (cachedEds && cachedEds.length > 0) {
+          setAvailableEditions(cachedEds);
+        }
+
         const q = query(collection(db, 'quran_editions'), where('enabled', '==', true));
         const snap = await getDocs(q);
         const eds = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as QuranEdition));
         setAvailableEditions(eds);
+        await cacheQuranEditions(eds);
       } catch (error) {
         console.error('Error fetching editions:', error);
       }
     };
-    fetchEditions();
+
+    fetchInitialData();
   }, []);
 
   const fetchSurahContent = async (surahNumber: number) => {
@@ -170,42 +194,64 @@ function QuranReaderContent({ onReaderModeChange }: { onReaderModeChange: (activ
       const arabicEdition = 'quran-uthmani-min';
       const translationEdition = settings.edition;
 
+      // Try loading from local IndexedDB cache first
+      const cachedArabic = await getCachedQuranSurah(arabicEdition, surahNumber);
+      const cachedTrans = await getCachedQuranSurah(translationEdition, surahNumber);
+
+      if (cachedArabic && cachedTrans) {
+        setAyahs(cachedArabic.ayahs);
+        setTranslations(cachedTrans.ayahs);
+        console.info(`Loaded Surah ${surahNumber} from local IndexedDB cache.`);
+        setIsLoading(false);
+        // If we have both, we can return early unless we need transliteration/audio
+        if (!settings.showTransliteration && !settings.showAudio) return;
+      }
+
       // 1. Fetch Arabic (Try Firestore then API)
       let arabicData;
-      try {
-        const arabicDoc = await getDoc(doc(db, 'quran_content', arabicEdition, 'surahs', surahNumber.toString()));
-        if (arabicDoc.exists()) {
-          arabicData = arabicDoc.data();
-        } else {
+      if (!cachedArabic) {
+        try {
+          const arabicDoc = await getDoc(doc(db, 'quran_content', arabicEdition, 'surahs', surahNumber.toString()));
+          if (arabicDoc.exists()) {
+            arabicData = arabicDoc.data();
+          } else {
+            const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/${arabicEdition}`);
+            const json = await res.json();
+            arabicData = json.data;
+          }
+        } catch (e) {
           const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/${arabicEdition}`);
           const json = await res.json();
           arabicData = json.data;
         }
-      } catch (e) {
-        const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/${arabicEdition}`);
-        const json = await res.json();
-        arabicData = json.data;
+        if (arabicData) {
+          await cacheQuranSurah(arabicEdition, surahNumber, arabicData);
+          setAyahs(arabicData.ayahs);
+        }
       }
 
       // 2. Fetch Translation (Try Firestore then API)
       let translationData;
-      try {
-        const transDoc = await getDoc(doc(db, 'quran_content', translationEdition, 'surahs', surahNumber.toString()));
-        if (transDoc.exists()) {
-          translationData = transDoc.data();
-        } else {
+      if (!cachedTrans) {
+        try {
+          const transDoc = await getDoc(doc(db, 'quran_content', translationEdition, 'surahs', surahNumber.toString()));
+          if (transDoc.exists()) {
+            translationData = transDoc.data();
+          } else {
+            const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/${translationEdition}`);
+            const json = await res.json();
+            translationData = json.data;
+          }
+        } catch (e) {
           const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/${translationEdition}`);
           const json = await res.json();
           translationData = json.data;
         }
-      } catch (e) {
-        const res = await fetch(`https://api.alquran.cloud/v1/surah/${surahNumber}/${translationEdition}`);
-        const json = await res.json();
-        translationData = json.data;
+        if (translationData) {
+          await cacheQuranSurah(translationEdition, surahNumber, translationData);
+          setTranslations(translationData.ayahs);
+        }
       }
-
-      setAyahs(arabicData.ayahs);
-      setTranslations(translationData.ayahs);
       
       // 3. Optional: Transliteration
       if (settings.showTransliteration) {
@@ -616,9 +662,18 @@ function SurahReader({
   const fetchPageData = async (pageNumber: number) => {
     setIsPageLoading(true);
     try {
+      // Try cache first
+      const cachedPage = await getCachedQuranPage(pageNumber);
+      if (cachedPage) {
+        setPageAyahs(cachedPage.ayahs);
+        setIsPageLoading(false);
+        return;
+      }
+
       const res = await fetch(`https://api.alquran.cloud/v1/page/${pageNumber}/quran-uthmani`);
       const data = await res.json();
       setPageAyahs(data.data.ayahs);
+      await cacheQuranPage(pageNumber, data.data);
     } catch (error) {
       console.error('Error fetching page data:', error);
       if (setToast) setToast({ message: 'Failed to load page view', type: 'info' });
@@ -729,7 +784,7 @@ function SurahReader({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-[40] bg-stone-50 flex flex-col overflow-hidden pb-24 md:pb-0 h-[100dvh]"
+      className="fixed inset-0 z-[40] bg-stone-50 flex flex-col overflow-hidden h-[100dvh] pb-20 md:pb-0"
     >
       {/* Optimized Header */}
       <header className="bg-white/80 backdrop-blur-md border-b border-stone-200 px-4 py-3 flex items-center justify-between z-50">
@@ -853,7 +908,7 @@ function SurahReader({
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 pb-12 md:pb-16 bg-white scroll-smooth font-quran">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 pb-16 md:pb-16 bg-white scroll-smooth font-quran">
                     <div className="text-right leading-[2.5] text-stone-900 pb-6" style={{ direction: 'rtl' }}>
                       {pageAyahs.map((ayah: any, idx: number) => {
                         return (
@@ -959,7 +1014,7 @@ function SurahReader({
                     </div>
                   </div>
 
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 pb-12 md:pb-16 bg-white scroll-smooth">
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-8 pb-16 md:pb-16 bg-white scroll-smooth">
                     <div className="min-h-full flex flex-col items-center justify-start py-6 text-center">
                       {currentAyahIndex === 0 && selectedSurah !== 1 && selectedSurah !== 9 && (
                         <p className="text-xl md:text-3xl font-arabic text-emerald-800/60 mb-8">

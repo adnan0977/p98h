@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { QuranEdition } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { handleFirestoreError, OperationType } from '../services/firestoreService';
 
 interface QuranEditorProps {
   editionId: string;
@@ -40,6 +41,7 @@ export default function QuranEditor({ editionId, onBack }: QuranEditorProps) {
   useEffect(() => {
     const fetchEditionAndSurahs = async () => {
       setIsLoading(true);
+      const path = `quran_content/${editionId}/surahs`;
       try {
         // Fetch edition metadata
         const edSnap = await getDoc(doc(db, 'quran_editions', editionId));
@@ -48,7 +50,7 @@ export default function QuranEditor({ editionId, onBack }: QuranEditorProps) {
         }
 
         // Fetch surahs
-        const surahsSnap = await getDocs(collection(db, 'quran_content', editionId, 'surahs'));
+        const surahsSnap = await getDocs(collection(db, path));
         const surahList = surahsSnap.docs.map(doc => doc.data() as Surah);
         surahList.sort((a, b) => a.number - b.number);
         setSurahs(surahList);
@@ -57,6 +59,10 @@ export default function QuranEditor({ editionId, onBack }: QuranEditorProps) {
         }
       } catch (error) {
         console.error('Error fetching Quran content:', error);
+        const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+        if (errorMessage.includes('quota') || errorMessage.includes('permission')) {
+          handleFirestoreError(error, OperationType.LIST, path);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -76,6 +82,7 @@ export default function QuranEditor({ editionId, onBack }: QuranEditorProps) {
     if (!selectedSurah || !edition) return;
     setIsSaving(true);
     setSaveStatus('idle');
+    const path = `quran_content/${editionId}/surahs/${selectedSurah.number}`;
     try {
       const surahRef = doc(db, 'quran_content', editionId, 'surahs', selectedSurah.number.toString());
       await updateDoc(surahRef, { ayahs: selectedSurah.ayahs });
@@ -88,6 +95,10 @@ export default function QuranEditor({ editionId, onBack }: QuranEditorProps) {
     } catch (error) {
       console.error('Error saving surah:', error);
       setSaveStatus('error');
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      if (errorMessage.includes('quota') || errorMessage.includes('permission')) {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      }
     } finally {
       setIsSaving(false);
     }

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { HadithBook } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
+import { handleFirestoreError, OperationType } from '../services/firestoreService';
 
 interface HadithEditorProps {
   bookId: string;
@@ -17,6 +18,7 @@ interface HadithContent {
   number: number;
   arab: string;
   id: string; // Indonesian translation in this API
+  status?: 'Verified' | 'Weak' | 'Marfu' | 'Sahih' | 'Hasan' | 'Daif' | 'Maudu';
 }
 
 export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
@@ -33,6 +35,8 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
   useEffect(() => {
     const fetchBookAndHadiths = async () => {
       setIsLoading(true);
+      const bookPath = `hadith_books/${bookId}`;
+      const hadithsPath = `hadith_content/${bookId}/hadiths`;
       try {
         // Fetch book metadata
         const bookSnap = await getDoc(doc(db, 'hadith_books', bookId));
@@ -41,10 +45,7 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
         }
 
         // Fetch hadiths for the current page
-        // Note: Firestore doesn't support easy offset pagination, 
-        // but since we have hadith numbers, we can use them for range queries
         const start = (currentPage - 1) * HADITHS_PER_PAGE + 1;
-        const end = start + HADITHS_PER_PAGE - 1;
         
         const hadithsSnap = await getDocs(
           query(
@@ -58,8 +59,6 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
         const hadithList = hadithsSnap.docs.map(doc => doc.data() as HadithContent);
         setHadiths(hadithList);
 
-        // Estimate total pages (this is a bit tricky without a count, but we can use book description or metadata)
-        // For now, we'll assume we can get it from the book description we saved earlier
         const match = bookSnap.data()?.description?.match(/Available Hadiths: (\d+)/);
         if (match) {
           const total = parseInt(match[1]);
@@ -67,6 +66,10 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
         }
       } catch (error) {
         console.error('Error fetching Hadith content:', error);
+        const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+        if (errorMessage.includes('quota') || errorMessage.includes('permission')) {
+          handleFirestoreError(error, OperationType.LIST, hadithsPath);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -75,20 +78,22 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
     fetchBookAndHadiths();
   }, [bookId, currentPage]);
 
-  const handleHadithChange = (index: number, field: 'arab' | 'id', newText: string) => {
+  const handleHadithChange = (index: number, field: keyof HadithContent, newValue: any) => {
     const updatedHadiths = [...hadiths];
-    updatedHadiths[index] = { ...updatedHadiths[index], [field]: newText };
+    updatedHadiths[index] = { ...updatedHadiths[index], [field]: newValue };
     setHadiths(updatedHadiths);
   };
 
   const handleSave = async (hadith: HadithContent) => {
     setIsSaving(true);
     setSaveStatus('idle');
+    const path = `hadith_content/${bookId}/hadiths/${hadith.number}`;
     try {
       const hadithRef = doc(db, 'hadith_content', bookId, 'hadiths', hadith.number.toString());
       await updateDoc(hadithRef, { 
         arab: hadith.arab,
-        id: hadith.id 
+        id: hadith.id,
+        status: hadith.status || null
       });
       
       setSaveStatus('success');
@@ -96,6 +101,10 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
     } catch (error) {
       console.error('Error saving hadith:', error);
       setSaveStatus('error');
+      const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+      if (errorMessage.includes('quota') || errorMessage.includes('permission')) {
+        handleFirestoreError(error, OperationType.UPDATE, path);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -207,6 +216,7 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
                 <th className="px-8 py-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest w-24">Number</th>
                 <th className="px-8 py-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">Arabic Content</th>
                 <th className="px-8 py-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest">Translation</th>
+                <th className="px-8 py-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest w-40">Status</th>
                 <th className="px-8 py-4 text-[10px] font-bold text-stone-400 uppercase tracking-widest w-20">Action</th>
               </tr>
             </thead>
@@ -232,6 +242,22 @@ export default function HadithEditor({ bookId, onBack }: HadithEditorProps) {
                       onChange={(e) => handleHadithChange(index, 'id', e.target.value)}
                       className="w-full p-4 bg-stone-50 border border-transparent rounded-2xl text-stone-800 text-sm focus:bg-white focus:border-emerald-200 focus:ring-4 focus:ring-emerald-50 outline-none transition-all resize-none min-h-[120px]"
                     />
+                  </td>
+                  <td className="px-8 py-6">
+                    <select
+                      value={hadith.status || ''}
+                      onChange={(e) => handleHadithChange(index, 'status', e.target.value)}
+                      className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-600 outline-none"
+                    >
+                      <option value="">Select Status</option>
+                      <option value="Sahih">Sahih</option>
+                      <option value="Hasan">Hasan</option>
+                      <option value="Verified">Verified</option>
+                      <option value="Weak">Weak</option>
+                      <option value="Daif">Da'if</option>
+                      <option value="Marfu">Marfu'</option>
+                      <option value="Maudu">Maudu'</option>
+                    </select>
                   </td>
                   <td className="px-8 py-6 align-top">
                     <button 

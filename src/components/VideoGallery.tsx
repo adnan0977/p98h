@@ -50,7 +50,7 @@ export default function VideoGallery() {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4 md:space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h2 className="text-3xl font-bold text-stone-900">Video Gallery</h2>

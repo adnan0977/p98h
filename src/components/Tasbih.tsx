@@ -37,7 +37,7 @@ export default function Tasbih() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-4xl mx-auto space-y-4 md:space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h2 className="text-3xl font-bold text-stone-900">Digital Tasbih</h2>
@@ -73,11 +73,11 @@ export default function Tasbih() {
           <motion.button
             whileTap={{ scale: 0.95 }}
             onClick={handleIncrement}
-            className="w-64 h-64 rounded-full bg-emerald-900 text-white shadow-2xl shadow-emerald-200 flex flex-col items-center justify-center gap-2 relative group overflow-hidden border-8 border-emerald-800"
+            className="w-48 h-48 md:w-64 md:h-64 rounded-full bg-emerald-900 text-white shadow-2xl shadow-emerald-200 flex flex-col items-center justify-center gap-2 relative group overflow-hidden border-8 border-emerald-800"
           >
             <div className="absolute inset-0 bg-emerald-800 opacity-0 group-hover:opacity-20 transition-all"></div>
-            <span className="text-7xl font-bold tracking-tighter">{count}</span>
-            <span className="text-[10px] uppercase tracking-[0.3em] font-bold text-emerald-400">Tap to Count</span>
+            <span className="text-5xl md:text-7xl font-bold tracking-tighter">{count}</span>
+            <span className="text-[8px] md:text-[10px] uppercase tracking-[0.3em] font-bold text-emerald-400">Tap to Count</span>
           </motion.button>
 
           <div className="flex items-center gap-8 relative z-10">

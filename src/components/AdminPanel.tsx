@@ -8,6 +8,12 @@ import {
   ChevronRight, Database
 } from 'lucide-react';
 import { QuranEdition, QuranEditionType, Language, HadithBook, HadithEdition, Video, AppSettings, UserProfile } from '../types';
+import { 
+  cacheQuranSurah, 
+  cacheHadiths, 
+  cacheHadithBooks, 
+  cacheQuranEditions 
+} from '../services/dbService';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth } from '../firebase';
 
@@ -554,9 +560,10 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
       const data = await response.json();
       if (data.code === 200) {
         const editionsData = data.data;
+        const editionsToCache = [];
         for (const ed of editionsData) {
           const edRef = doc(db, 'quran_editions', ed.identifier);
-          await setDoc(edRef, {
+          const edPayload = {
             name: ed.name,
             englishName: ed.englishName,
             language: langMap[ed.language] || ed.language, // Use mapped name from languages table
@@ -566,8 +573,11 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
             identifier: ed.identifier,
             author: ed.englishName,
             enabled: true
-          }, { merge: true });
+          };
+          await setDoc(edRef, edPayload, { merge: true });
+          editionsToCache.push({ id: ed.identifier, ...edPayload });
         }
+        await cacheQuranEditions(editionsToCache);
         alert('Quran editions synced successfully!');
         if (activeTab === 'quran') fetchData();
       }
@@ -586,11 +596,17 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
       const q = query(
         collection(db, 'hadith_index'),
         where('bookId', '==', book.id),
-        where('language', '==', edition.language),
-        orderBy('chapterNumber')
+        where('language', '==', edition.language)
       );
       const snap = await getDocs(q);
-      setIndexChapters(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      const chapters = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Sort in memory to avoid composite index requirement
+      chapters.sort((a: any, b: any) => {
+        const numA = typeof a.chapterNumber === 'string' ? parseInt(a.chapterNumber) : a.chapterNumber;
+        const numB = typeof b.chapterNumber === 'string' ? parseInt(b.chapterNumber) : b.chapterNumber;
+        return numA - numB;
+      });
+      setIndexChapters(chapters);
     } catch (error: any) {
       console.error('Error fetching index:', error);
     } finally {
@@ -679,8 +695,7 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
         const surah = surahs[i];
         setSyncProgress(prev => ({ ...prev, currentSurah: i + 1 }));
         
-        const surahRef = doc(db, 'quran_content', edition.id, 'surahs', surah.number.toString());
-        await setDoc(surahRef, {
+        const surahData = {
           number: surah.number,
           name: surah.name,
           englishName: surah.englishName,
@@ -697,7 +712,13 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
             hizbQuarter: a.hizbQuarter,
             sajda: a.sajda
           }))
-        });
+        };
+
+        const surahRef = doc(db, 'quran_content', edition.id, 'surahs', surah.number.toString());
+        await setDoc(surahRef, surahData);
+        
+        // Also cache locally
+        await cacheQuranSurah(edition.id, surah.number, surahData);
       }
 
       // Update edition to mark as synced
@@ -756,7 +777,7 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
             id: chapter.id,
             bookId: book.id,
             bookSlug: chapter.bookSlug,
-            chapterNumber: chapter.chapterNumber,
+            chapterNumber: typeof chapter.chapterNumber === 'string' ? parseInt(chapter.chapterNumber) : chapter.chapterNumber,
             chapterName: chapterName,
             chapterArabic: chapter.chapterArabic,
             language: language,
@@ -795,10 +816,11 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
       const chaptersResponse = await fetch(`https://hadithapi.com/api/${book.id}/chapters?apiKey=${apiKey}`);
       const chaptersData = await chaptersResponse.json();
       
+      const language = editionId ? (hadithEditions.find(e => e.id === editionId)?.language || 'English') : 'English';
+
       if (chaptersData.status === 200 || chaptersData.status === 'success') {
         const chapters = chaptersData.chapters || [];
         const chapterBatch = writeBatch(db);
-        const language = editionId ? (hadithEditions.find(e => e.id === editionId)?.language || 'English') : 'English';
         
         for (const chapter of chapters) {
           // Determine chapterName based on language
@@ -814,7 +836,7 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
             id: chapter.id,
             bookId: book.id,
             bookSlug: chapter.bookSlug,
-            chapterNumber: chapter.chapterNumber,
+            chapterNumber: typeof chapter.chapterNumber === 'string' ? parseInt(chapter.chapterNumber) : chapter.chapterNumber,
             chapterName: chapterName,
             chapterArabic: chapter.chapterArabic,
             language: language,
@@ -848,10 +870,10 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
 
         const hadiths = pageData.hadiths.data;
         const batch = writeBatch(db);
+        const hadithsToCache = [];
         
         for (const hadith of hadiths) {
-          const hadithRef = doc(db, 'hadith_content', book.id, 'hadiths', hadith.hadithNumber.toString());
-          batch.set(hadithRef, {
+          const hadithData = {
             number: hadith.hadithNumber,
             arab: hadith.hadithArabic,
             english: {
@@ -865,10 +887,16 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
             chapterId: hadith.chapterId,
             bookSlug: hadith.bookSlug,
             status: hadith.status
-          });
+          };
+
+          const hadithRef = doc(db, 'hadith_content', book.id, 'hadiths', hadith.hadithNumber.toString());
+          batch.set(hadithRef, hadithData);
+          hadithsToCache.push({ hadithNumber: hadith.hadithNumber, ...hadithData });
         }
         
         await batch.commit();
+        // Cache locally
+        await cacheHadiths(book.id, language, hadithsToCache);
       }
 
       if (editionId) {
@@ -885,6 +913,68 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
       fetchData();
     } catch (error: any) {
       console.error('Hadith Sync Error:', error);
+      setSyncProgress(prev => ({ ...prev, isSyncing: false, error: error.message }));
+    }
+  };
+
+  const syncChapterHadiths = async (book: HadithBook, chapter: any) => {
+    setSyncProgress({
+      isSyncing: true,
+      currentSurah: 0,
+      totalSurahs: 1,
+      editionName: `${book.name} - Chapter ${chapter.chapterNumber}`,
+      error: null,
+    });
+
+    try {
+      const apiKey = '$2y$10$zBKMN41uis6ihOJnGbQGqOMvAugri3bY191hZlhdFtsfPjiCYO';
+      // Use the public API as requested by the user
+      const response = await fetch(`https://hadithapi.com/public/api/hadiths?apiKey=${apiKey}&bookslug=${book.id}&chapter=${chapter.chapterNumber}`);
+      const data = await response.json();
+
+      if (data.status !== 200 && data.status !== 'success') {
+        throw new Error(data.message || 'Failed to fetch hadiths from API');
+      }
+
+      const hadiths = data.hadiths.data;
+      const batch = writeBatch(db);
+      
+      for (const hadith of hadiths) {
+        const hadithData = {
+          number: hadith.hadithNumber,
+          arabic: hadith.hadithArabic,
+          english: {
+            narrator: hadith.englishNarrator,
+            text: hadith.hadithEnglish
+          },
+          urdu: {
+            narrator: hadith.urduNarrator,
+            text: hadith.hadithUrdu
+          },
+          chapterId: typeof hadith.chapterId === 'string' ? parseInt(hadith.chapterId) : hadith.chapterId,
+          bookSlug: hadith.bookSlug,
+          status: hadith.status
+        };
+
+        const hadithRef = doc(db, 'hadith_content', book.id, 'hadiths', hadith.hadithNumber.toString());
+        batch.set(hadithRef, hadithData);
+      }
+      
+      await batch.commit();
+      
+      // Update chapter in index to mark as synced
+      const chapterRef = doc(db, 'hadith_index', chapter.id);
+      await updateDoc(chapterRef, {
+        lastSyncedAt: new Date().toISOString()
+      });
+
+      // Update local state
+      setIndexChapters(prev => prev.map(c => c.id === chapter.id ? { ...c, lastSyncedAt: new Date().toISOString() } : c));
+
+      setSyncProgress(prev => ({ ...prev, isSyncing: false }));
+      alert(`Chapter ${chapter.chapterNumber} synced successfully!`);
+    } catch (error: any) {
+      console.error('Chapter Sync Error:', error);
       setSyncProgress(prev => ({ ...prev, isSyncing: false, error: error.message }));
     }
   };
@@ -1655,8 +1745,18 @@ export default function AdminPanel({ onEditEdition, onEditHadith }: AdminPanelPr
                             <p className="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Chapter {chapter.chapterNumber}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                        <div className="flex items-center gap-2">
                           <span className="text-[10px] font-mono text-stone-400">{chapter.id}</span>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              syncChapterHadiths(viewingIndex.book, chapter);
+                            }}
+                            className="p-2 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-100 transition-all flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest"
+                          >
+                            <RefreshCw className="w-3 h-3" />
+                            Sync
+                          </button>
                         </div>
                       </div>
                     ))}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { doc, getDoc, setDoc, getDocFromServer } from 'firebase/firestore';
+import { doc, getDoc, setDoc, getDocFromServer, getDocFromCache } from 'firebase/firestore';
 import Layout from './components/Layout';
 import PrayerTimesDisplay from './components/PrayerTimes';
 import QuranReader from './components/QuranReader';
@@ -16,57 +16,7 @@ import HadithEditor from './components/HadithEditor';
 import { UserProfile, AppSettings } from './types';
 import { LogIn, Moon, ShieldCheck, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
+import { handleFirestoreError, OperationType } from './services/firestoreService';
 
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, error: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -126,12 +76,46 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    const saved = localStorage.getItem('user_profile');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
   const [activeTab, setActiveTab] = useState('prayers');
   const [editingEditionId, setEditingEditionId] = useState<string | null>(null);
   const [editingHadithId, setEditingHadithId] = useState<string | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
-  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(() => {
+    const saved = localStorage.getItem('app_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (userProfile) {
+      localStorage.setItem('user_profile', JSON.stringify(userProfile));
+    } else {
+      localStorage.removeItem('user_profile');
+    }
+  }, [userProfile]);
+
+  useEffect(() => {
+    if (appSettings) {
+      localStorage.setItem('app_settings', JSON.stringify(appSettings));
+    }
+  }, [appSettings]);
 
   const [isReaderMode, setIsReaderMode] = useState(false);
   const [isHadithReaderMode, setIsHadithReaderMode] = useState(false);
@@ -147,51 +131,139 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    async function testConnection() {
+    const initializeApp = async () => {
+      const path = 'app_settings/global';
+      const docRef = doc(db, 'app_settings', 'global');
+      
       try {
-        await getDocFromServer(doc(db, 'app_settings', 'global'));
+        // Try server first
+        const docSnap = await getDocFromServer(docRef);
+        if (docSnap.exists()) {
+          setAppSettings(docSnap.data() as AppSettings);
+          return; // Success
+        }
       } catch (error) {
-        if(error instanceof Error && error.message.includes('the client is offline')) {
+        const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+        console.warn("Server fetch failed, trying cache:", errorMessage);
+        
+        if (errorMessage.includes('the client is offline')) {
           console.error("Please check your Firebase configuration. ");
         }
       }
-    }
-    testConnection();
 
-    const fetchSettings = async () => {
-      const path = 'app_settings/global';
+      // Fallback to cache
       try {
-        const docRef = doc(db, 'app_settings', 'global');
-        const docSnap = await getDoc(docRef);
+        const docSnap = await getDocFromCache(docRef);
         if (docSnap.exists()) {
           setAppSettings(docSnap.data() as AppSettings);
+          console.info("Loaded settings from Firestore cache.");
+          return;
         }
-      } catch (error) {
-        handleFirestoreError(error, OperationType.GET, path);
+      } catch (cacheError) {
+        console.warn("Failed to fetch settings from Firestore cache:", cacheError);
+      }
+
+      // Final fallback: localStorage (already loaded in useState, but we check if it's enough)
+      if (appSettings) {
+        console.info("Using settings from localStorage.");
+      } else {
+        // Provide hardcoded defaults so the app doesn't crash
+        console.warn("Using hardcoded default settings.");
+        setAppSettings({
+          maintenanceMode: false,
+          announcement: "Welcome to Al-Hidayah. Daily Firestore quota may be limited."
+        });
       }
     };
-    fetchSettings();
+    initializeApp();
 
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       if (currentUser) {
-        const path = `users/${currentUser.uid}`;
+        const userDocRef = doc(db, 'users', currentUser.uid);
+        
         try {
-          const profileDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (profileDoc.exists()) {
-            setUserProfile(profileDoc.data() as UserProfile);
+          console.log(`[App] Fetching user profile for UID: ${currentUser.uid}`);
+          // Try fetching profile (getDoc handles cache automatically if offline/quota)
+          let profileDoc = null;
+          try {
+            profileDoc = await getDocFromServer(userDocRef);
+            console.log(`[App] getDocFromServer result exists: ${profileDoc.exists()}`);
+          } catch (getErr) {
+            const getErrMsg = getErr instanceof Error ? getErr.message.toLowerCase() : '';
+            console.warn(`[App] getDocFromServer failed: ${getErrMsg}`);
+            
+            if (getErrMsg.includes('permission')) {
+              handleFirestoreError(getErr, OperationType.GET, `users/${currentUser.uid}`);
+            }
+
+            if (getErrMsg.includes('quota') || getErrMsg.includes('offline')) {
+              console.warn("[App] getDocFromServer failed (quota/offline), trying cache explicitly.");
+              try {
+                profileDoc = await getDocFromCache(userDocRef);
+                console.log(`[App] getDocFromCache result exists: ${profileDoc?.exists()}`);
+              } catch (cacheErr) {
+                console.warn("[App] Profile not found in cache. Treating as new/guest user for this session.");
+                // We'll proceed to the 'else' block below by leaving profileDoc as null
+              }
+            } else {
+              console.error("[App] getDocFromServer failed with non-quota/offline error:", getErr);
+              throw getErr;
+            }
+          }
+
+          if (profileDoc && profileDoc.exists()) {
+            const data = profileDoc.data() as UserProfile;
+            console.log("[App] User profile loaded:", data.role);
+            setUserProfile(data);
           } else {
+            // Create new profile (or fallback for quota-blocked existing users)
+            console.log("[App] Profile doesn't exist or not found. Creating new profile...");
             const newProfile: UserProfile = {
               uid: currentUser.uid,
               email: currentUser.email || '',
               displayName: currentUser.displayName || '',
               role: currentUser.email === 'adnan0977@gmail.com' ? 'admin' : 'user',
             };
-            await setDoc(doc(db, 'users', currentUser.uid), newProfile);
+            
+            // Optimistically set local state
             setUserProfile(newProfile);
+
+            // Try to save to server, but don't crash if it fails (e.g. quota)
+            try {
+              console.log("[App] Attempting to save new profile to Firestore...");
+              await setDoc(userDocRef, newProfile);
+              console.log("[App] Profile saved successfully.");
+            } catch (saveError) {
+              const saveMsg = saveError instanceof Error ? saveError.message.toLowerCase() : '';
+              if (saveMsg.includes('permission')) {
+                handleFirestoreError(saveError, OperationType.CREATE, `users/${currentUser.uid}`);
+              }
+              if (saveMsg.includes('quota')) {
+                console.warn("[App] Quota exceeded while saving profile. Profile is active locally.");
+              } else {
+                console.error("[App] Error saving profile:", saveError);
+              }
+            }
           }
         } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, path);
+          const errorMessage = error instanceof Error ? error.message.toLowerCase() : '';
+          console.error("[App] Error handling user profile (outer catch):", error);
+          
+          // If we have a profile in localStorage, we're okay
+          if (userProfile) {
+            console.warn("[App] Using user profile from localStorage due to error.");
+          } else if (errorMessage.includes('quota') || errorMessage.includes('permission') || errorMessage.includes('cache')) {
+            // If it's a new user and we hit quota/cache error, just use a basic profile
+            console.warn("[App] Falling back to guest profile due to error.");
+            const guestProfile: UserProfile = {
+              uid: currentUser.uid,
+              email: currentUser.email || '',
+              displayName: currentUser.displayName || 'Guest User',
+              role: currentUser.email === 'adnan0977@gmail.com' ? 'admin' : 'user',
+            };
+            setUserProfile(guestProfile);
+          }
         }
       } else {
         setUserProfile(null);
@@ -340,7 +412,7 @@ export default function App() {
         isAdmin={userProfile?.role === 'admin'}
         announcement={appSettings?.announcement}
         hideHeader={(activeTab === 'quran' && isReaderMode) || (activeTab === 'hadith' && isHadithReaderMode)}
-        hideFooter={(activeTab === 'quran' && isReaderMode) || (activeTab === 'hadith' && isHadithReaderMode)}
+        hideFooter={false}
       >
         {renderContent()}
       </Layout>
