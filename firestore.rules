@@ -1,0 +1,120 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+          (request.auth.token.email == "adnan0977@gmail.com")
+        );
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return data.uid is string && 
+             data.email is string &&
+             (data.role == 'user' || data.role == 'admin') &&
+             (!('displayName' in data) || data.displayName is string);
+    }
+
+    function isValidQuranEdition(data) {
+      return (data.name is string && data.name.size() > 0) &&
+             (data.language is string) &&
+             (data.type is string) &&
+             (!('identifier' in data) || data.identifier is string) &&
+             (!('author' in data) || data.author is string) &&
+             (!('enabled' in data) || data.enabled is bool);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    
+    match /users/{userId} {
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) && request.resource.data.role == resource.data.role && isValidUser(request.resource.data)) || isAdmin();
+    }
+
+    match /quran_editions/{editionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /quran_edition_types/{typeId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /languages/{languageId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /hadith_books/{bookId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /hadith_editions/{editionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /hadith_index/{chapterId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /hadith_content/{bookId}/hadiths/{hadithNumber} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /videos/{videoId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /app_settings/{settingsId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /zakat_records/{recordId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    match /tasbih_history/{historyId} {
+      allow read: if isAuthenticated() && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      allow delete: if isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    match /quran_content/{editionId}/surahs/{surahNumber} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "Al-Hidayah: Comprehensive Islamic App",
+  "description": "An all-in-one Islamic application featuring precise prayer times, Quran, Hadith, AI chatbot, and spiritual tools.",
+  "requestFramePermissions": ["geolocation"]
+}

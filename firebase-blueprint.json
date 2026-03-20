@@ -1,0 +1,264 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "language": { "type": "string" },
+            "calculationMethod": { "type": "string" },
+            "madhab": { "type": "string" }
+          }
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "quran_surah": {
+      "title": "Quran Surah",
+      "description": "Content of a specific surah in a specific edition",
+      "type": "object",
+      "properties": {
+        "number": { "type": "integer" },
+        "name": { "type": "string" },
+        "englishName": { "type": "string" },
+        "englishNameTranslation": { "type": "string" },
+        "revelationType": { "type": "string" },
+        "ayahs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "number": { "type": "integer" },
+              "text": { "type": "string" },
+              "numberInSurah": { "type": "integer" },
+              "juz": { "type": "integer" },
+              "manzil": { "type": "integer" },
+              "page": { "type": "integer" },
+              "ruku": { "type": "integer" },
+              "hizbQuarter": { "type": "integer" },
+              "sajda": { "type": "boolean" }
+            }
+          }
+        }
+      },
+      "required": ["number", "name", "ayahs"]
+    },
+    "quran_edition": {
+      "title": "Quran Edition",
+      "description": "Metadata for Quran translations and editions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "englishName": { "type": "string" },
+        "language": { "type": "string" },
+        "type": { "type": "string" },
+        "format": { "type": "string" },
+        "identifier": { "type": "string" },
+        "author": { "type": "string" },
+        "enabled": { "type": "boolean" }
+      },
+      "required": ["name", "language", "type"]
+    },
+    "hadith_book": {
+      "title": "Hadith Book",
+      "description": "Metadata for Hadith collections",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "author": { "type": "string" },
+        "language": { "type": "string" },
+        "description": { "type": "string" },
+        "hadithsCount": { "type": "integer" },
+        "chaptersCount": { "type": "integer" },
+        "lastSyncedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "author", "language"]
+    },
+    "hadith_edition": {
+      "title": "Hadith Edition",
+      "description": "Language-specific edition for a Hadith book",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bookId": { "type": "string" },
+        "bookSlug": { "type": "string" },
+        "language": { "type": "string" },
+        "lastSyncedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["bookId", "language"]
+    },
+    "hadith_chapter": {
+      "title": "Hadith Chapter",
+      "description": "Chapter metadata for a Hadith book",
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "bookId": { "type": "string" },
+        "bookSlug": { "type": "string" },
+        "chapterNumber": { "type": "integer" },
+        "chapterName": { "type": "string" },
+        "chapterArabic": { "type": "string" },
+        "language": { "type": "string" }
+      },
+      "required": ["chapterNumber", "chapterName", "chapterArabic", "language"]
+    },
+    "hadith": {
+      "title": "Hadith",
+      "description": "A single Hadith with multiple translations",
+      "type": "object",
+      "properties": {
+        "number": { "type": "integer" },
+        "arab": { "type": "string" },
+        "english": {
+          "type": "object",
+          "properties": {
+            "narrator": { "type": "string" },
+            "text": { "type": "string" }
+          }
+        },
+        "urdu": {
+          "type": "object",
+          "properties": {
+            "narrator": { "type": "string" },
+            "text": { "type": "string" }
+          }
+        },
+        "chapterId": { "type": "integer" },
+        "bookSlug": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["number", "arab"]
+    },
+    "zakat_record": {
+      "title": "Zakat Record",
+      "description": "User's Zakat calculation history",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "amount": { "type": "number" },
+        "assets": { "type": "object" }
+      },
+      "required": ["userId", "date", "amount"]
+    },
+    "tasbih_history": {
+      "title": "Tasbih History",
+      "description": "User's dhikr history",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "count": { "type": "number" },
+        "dhikr": { "type": "string" }
+      },
+      "required": ["userId", "date", "count", "dhikr"]
+    },
+    "video": {
+      "title": "Video",
+      "description": "Islamic video content",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "thumbnail": { "type": "string" },
+        "category": { "type": "string" },
+        "description": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "url"]
+    },
+    "app_settings": {
+      "title": "App Settings",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "maintenanceMode": { "type": "boolean" },
+        "announcement": { "type": "string" },
+        "featuredVideoId": { "type": "string" }
+      }
+    },
+    "quran_edition_type": {
+      "title": "Quran Edition Type",
+      "description": "Types of Quran editions (translation, transliteration, etc.)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "language": {
+      "title": "Language",
+      "description": "ISO Language codes and names",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["code", "name"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "User profiles"
+    },
+    "/quran_editions/{editionId}": {
+      "schema": "quran_edition",
+      "description": "Quran metadata"
+    },
+    "/quran_edition_types/{typeId}": {
+      "schema": "quran_edition_type",
+      "description": "Quran edition types"
+    },
+    "/languages/{languageId}": {
+      "schema": "language",
+      "description": "Language mapping"
+    },
+    "/hadith_books/{bookId}": {
+      "schema": "hadith_book",
+      "description": "Hadith metadata"
+    },
+    "/hadith_editions/{editionId}": {
+      "schema": "hadith_edition",
+      "description": "Hadith editions metadata"
+    },
+    "/hadith_index/{chapterId}": {
+      "schema": "hadith_chapter",
+      "description": "Hadith chapter index"
+    },
+    "/hadith_content/{bookId}/hadiths/{hadithNumber}": {
+      "schema": "hadith",
+      "description": "Hadith content"
+    },
+    "/zakat_records/{recordId}": {
+      "schema": "zakat_record",
+      "description": "Zakat history"
+    },
+    "/tasbih_history/{historyId}": {
+      "schema": "tasbih_history",
+      "description": "Tasbih history"
+    },
+    "/videos/{videoId}": {
+      "schema": "video",
+      "description": "Video gallery"
+    },
+    "/app_settings/{settingsId}": {
+      "schema": "app_settings",
+      "description": "Global settings"
+    },
+    "/quran_content/{editionId}/surahs/{surahNumber}": {
+      "schema": "quran_surah",
+      "description": "Quran text content per surah for a specific edition"
+    }
+  }
+}
